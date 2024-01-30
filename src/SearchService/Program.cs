@@ -1,5 +1,8 @@
+using System.Net;
 using MongoDB.Driver;
 using MongoDB.Entities;
+using Polly;
+using Polly.Extensions.Http;
 using SearchService;
 using SearchService.Models;
 
@@ -8,8 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpClient<AuctionSvcHttpClient>().AddPolicyHandler(GetPolicy());
 
 var app = builder.Build();
 
@@ -19,14 +21,20 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-try
+
+// add this even up to still start the application even if 
+// SearchService is waiting for AuctionService
+app.Lifetime.ApplicationStarted.Register(async () =>
 {
-    await DbInitializer.InitDb(app);
-}
-catch (Exception e)
-{
-    Console.WriteLine(e);
-}
+    try
+    {
+        await DbInitializer.InitDb(app);
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e);
+    }
+});
 
 // await DB.InitAsync("SearchDb", MongoClientSettings.
 //     FromConnectionString(builder.Configuration.GetConnectionString("MongoDbConnection")));
@@ -39,3 +47,10 @@ catch (Exception e)
 //     .CreateAsync();
 
 app.Run();
+
+// handles transient failure. This function return a HttpResponseMessage
+static IAsyncPolicy<HttpResponseMessage> GetPolicy()
+    => HttpPolicyExtensions
+        .HandleTransientHttpError()
+        .OrResult(msg => msg.StatusCode == HttpStatusCode.NotFound)
+        .WaitAndRetryForeverAsync(_ => TimeSpan.FromSeconds(3));
