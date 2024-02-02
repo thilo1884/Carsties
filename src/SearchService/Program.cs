@@ -1,4 +1,5 @@
 using System.Net;
+using MassTransit;
 using MongoDB.Driver;
 using MongoDB.Entities;
 using Polly;
@@ -11,7 +12,20 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddHttpClient<AuctionSvcHttpClient>().AddPolicyHandler(GetPolicy());
+builder.Services.AddMassTransit(x => 
+{
+    x.AddConsumersFromNamespaceContaining<AuctionCreatedConsumer>();
+
+    // add prefix search
+    x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter("search", false));
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.ConfigureEndpoints(context);
+    });
+});
 
 var app = builder.Build();
 

@@ -3,6 +3,8 @@ using AuctionService.DTOs;
 using AuctionService.Entities;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using Contracts;
+using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,10 +17,13 @@ public class AuctionsController : ControllerBase
     private readonly AuctionDbContext _context;
     private readonly IMapper _mapper;
 
-    public AuctionsController(AuctionDbContext context, IMapper mapper)
+    private readonly IPublishEndpoint _publishEndpoint;
+
+    public AuctionsController(AuctionDbContext context, IMapper mapper, IPublishEndpoint publishEndpoint)
     {
         _context = context;
         _mapper = mapper;
+        _publishEndpoint = publishEndpoint;
     }
 
     [HttpGet]
@@ -58,9 +63,17 @@ public class AuctionsController : ControllerBase
         // 0 means no data has been saved
         var result = await _context.SaveChangesAsync() > 0;
 
+        // After the new auction has been created in the database we 
+        // have the new ID. So we need to create the event for
+        // MassTransmit after SaveChangesAsync
+        var newAuction = _mapper.Map<AuctionDto>(auction);
+
+        await _publishEndpoint.Publish(_mapper.Map<AuctionCreated>(newAuction));
+
         if (!result) return BadRequest("Could not savechanges to the DB");
 
-        return CreatedAtAction(nameof(GetAuctionById), new{auction.Id}, _mapper.Map<AuctionDto>(auction));
+        return CreatedAtAction(nameof(GetAuctionById), 
+            new{auction.Id}, newAuction);
     }
 
     [HttpPut("{id}")]
