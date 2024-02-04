@@ -60,15 +60,12 @@ public class AuctionsController : ControllerBase
 
         _context.Auctions.Add(auction);
 
-        // 0 means no data has been saved
-        var result = await _context.SaveChangesAsync() > 0;
-
-        // After the new auction has been created in the database we 
-        // have the new ID. So we need to create the event for
-        // MassTransmit after SaveChangesAsync
         var newAuction = _mapper.Map<AuctionDto>(auction);
 
         await _publishEndpoint.Publish(_mapper.Map<AuctionCreated>(newAuction));
+
+        // 0 means no data has been saved
+        var result = await _context.SaveChangesAsync() > 0;
 
         if (!result) return BadRequest("Could not savechanges to the DB");
 
