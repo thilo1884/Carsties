@@ -19,5 +19,10 @@ public class MappingProfiles : Profile
 
        // AuctionCreated it's the between class used between Contracts and AuctionService
        CreateMap<AuctionDto, AuctionCreated>();
+
+       CreateMap<CreateAuctionDto, AuctionUpdated>();
+
+       CreateMap<Auction, AuctionUpdated>().IncludeMembers(a => a.Item);
+       CreateMap<Item, AuctionUpdated>();
     }
 }
